@@ -25,72 +25,51 @@ fn main() {
     let mut pgn: i8 = 0;
     let mut ptn: i8 = 0;
 
-    /* Since Z_GPU and Z_CPU are greater than Z_PCIe,
-     * expect voltages at each end to increment monotonically
-     * in decreasing steps towards 0.8258 Volts.
-     * */
+    // Since Z_GPU and Z_CPU are greater than Z_PCIe,
+    // expect voltages at each end to increment monotonically
+    // in decreasing steps towards 0.8258 Volts.
 
-    // Calculate initial voltage step for each lane
-    let _lane = 0;
-    let mut clane: i8 = 0;
-    let mut a_prev: f64 = init_lane_vs(pg, pgn, pt, ptn, v1, t[clane as usize]);
-    let mut a_curr: f64 = 0.0;
-    let mut vr_incre: [f64; N_LANES as usize] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
-    let mut vs_incre: [f64; N_LANES as usize] = [v1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
+    let clane: i8 = 0;
+    let mut _cycle: i8 = 0;
+    let mut a: f64 = init_lane_vs(pg, pgn, pt, ptn, v1, t[clane as usize]);
 
-    let vr_incre_prev: f64 = 0.0;
-    let vr_incre_curr: f64 = 0.0;
-    let vs_incre_prev: f64 = 0.0;
-    let vs_incre_curr: f64 = 0.0;
-    let mut time: [i8; N_LANES as usize] = [0, 0, 0, 0, 0, 0, 0, 0];
+    let vr_incre: f64 = 0.0;
+    let vs_incre: f64 = 0.0;
 
-    for _lane in 0..=N_LANES - 1 {
-        // Calculate receiving end
-        if _lane == 0 {
-            let vr_incre_curr: f64 = v_incre(pt, a_prev); // initial receiving end
-            vr_incre[_lane as usize] = vr_incre_curr; // Store result
-        } else if _lane < N_LANES - 1 {
-            a_prev = a_curr;
-            let vr_incre_prev = vr_incre_curr; // set current to previous receiving end
-            let vr_incre_curr: f64 = vr_incre_prev + v_incre(pt, a_prev); // Calculate new receiving end.
-            vr_incre[_lane as usize] = vr_incre_curr; // Store result
-        } else {
-            a_prev = 0.0;
-            let vr_incre_curr: f64 = vr_incre_prev + v_incre(pt, a_prev); // No change.
-            vr_incre[_lane as usize] = vr_incre_curr; // Store result
-        }
+    for clane in 0..=N_LANES-1 { // Current lane
+        for _cycle in 0..=N_LANES-1 { // Current cycle
 
-        // Collect Pt
-        ptn += 1;
-        a_curr = lane_vr(pg, pgn, pt, ptn, v1, t[clane as usize], clane); // out from receiving end.
+            // Receiving End
+            let vr_incre = if _cycle == 0 {
+                v_incre(pt, a) // initial receiving end voltage
+            } else if _cycle < N_LANES {
+                vr_incre + v_incre(pt, a) // Calculate new receiving end voltage
+            } else {
+                0.0
+            };
 
-        // Calculate sending end
-        if _lane == 0 {
-            let vs_incre_curr: f64 = v_incre(pg, a_curr);
-            vs_incre[(_lane + 1) as usize] = vs_incre_curr + vs_incre[_lane as usize];
-        } else if _lane < N_LANES - 1 {
-            let vs_incre_prev = vs_incre_curr; // set current to previous sending end
-            let vs_incre_curr = vs_incre_prev + v_incre(pg, a_curr);
-            vs_incre[(_lane + 1) as usize] = vs_incre_curr;
-        } else if _lane == N_LANES {
-            // Do nothing.
-            a_prev = 0.0;
-            let vs_incre_curr = vs_incre_prev + v_incre(pg, a_prev);
-            vs_incre[_lane as usize] = vs_incre_curr;
-        }
+            // Going from receiving end to sending end
+            ptn += 1; // Collect Pt
+            a = lane_vr(pg, pgn, pt, ptn, v1, t[clane as usize], clane); // out from receiving end.
 
-        // Collect Pg
-        pgn += 1;
-        a_curr = lane_vs(pg, pgn, pt, ptn, v1, t[clane as usize], clane); // out from sending end.
-        time[_lane as usize] = _lane;
+            // Sending End
+            let vs_incre = if _cycle == 0 {
+                v1 + v_incre(pg, a) // initial sending end voltage
+            } else if _cycle < N_LANES {
+                vs_incre + v_incre(pg, a) // Calculate new sending end voltage
+            } else {
+                0.0
+            };
 
-        // Calculate next lane.
-        if clane < N_LANES - 1 {
-            clane += 1;
+            // Going from sending end to receiving end
+            pgn += 1;
+            a = lane_vs(pg, pgn, pt, ptn, v1, t[clane as usize], clane); // out from sending end.
+
+            //println!("vr_incre: {:?}", vr_incre);
+            //println!("vs_incre: {:?}", vs_incre);
+
         }
     }
-    println!("vr_incre: {:?}", vr_incre);
-    println!("vs_incre: {:?}", vs_incre);
 }
 
 fn sq_rt(input: f64) -> f64 {
