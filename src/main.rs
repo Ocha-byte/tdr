@@ -3,6 +3,7 @@
 use ndarray::arr1;
 use num_traits::pow;
 use std::f64::consts::E;
+use plotters::prelude::*;
 
 fn main() {
     let z0: f64 = 43.43123; // Transmission line impedance
